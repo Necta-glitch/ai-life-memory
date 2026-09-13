@@ -5,12 +5,19 @@ from app.schemas.memory import MemoryCreate
 from app.schemas.memory_update import MemoryUpdate
 from app.models.memory import Memory
 from app.ai.service import AIService
+from app.ai.embedding_service import EmbeddingService
+from app.ai.embeddings import build_embedding_input
 
 
 class MemoryService:
-    def __init__(self, ai_service: AIService | None = None):
+    def __init__(
+        self,
+        ai_service: AIService | None = None,
+        embedding_service: EmbeddingService | None = None,
+    ):
         self.repository = MemoryRepository()
         self.ai_service = ai_service or AIService()
+        self.embedding_service = embedding_service or EmbeddingService()
 
     def create_memory(
         self,
@@ -36,6 +43,15 @@ class MemoryService:
         new_memory.summary = ai_result.summary
         new_memory.topics = ai_result.topics
         new_memory.entities = ai_result.entities
+
+        # Generate embedding using MVP strategy: content + summary
+        embedding_text = build_embedding_input(
+            content=memory.content,
+            summary=ai_result.summary,
+            strategy="content_summary",
+        )
+        embedding = self.embedding_service.get_embedding(embedding_text)
+        new_memory.embedding = embedding
 
         # Commit everything atomically
         db.commit()

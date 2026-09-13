@@ -10,6 +10,7 @@ from app.db.database import get_db
 from app.main import app
 from app.ai.schemas import AIProcessingResult
 from app.ai.service import AIService
+from app.ai.embedding_service import EmbeddingService
 
 
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"
@@ -45,17 +46,26 @@ def mock_ai_service():
     return mock_service
 
 
+@pytest.fixture(scope="function")
+def mock_embedding_service():
+    """Mock EmbeddingService for testing."""
+    mock_service = Mock(spec=EmbeddingService)
+    mock_service.get_embedding.return_value = [0.1] * 1536
+    return mock_service
+
+
 @pytest_asyncio.fixture(scope="function")
-async def client(db_session, mock_ai_service):
+async def client(db_session, mock_ai_service, mock_embedding_service):
     def override_get_db():
         try:
             yield db_session
         finally:
             pass
 
-    # Override MemoryService's AIService with mock
+    # Override MemoryService's AIService and EmbeddingService with mocks
     from app.api.memories import memory_service
     memory_service.ai_service = mock_ai_service
+    memory_service.embedding_service = mock_embedding_service
 
     app.dependency_overrides[get_db] = override_get_db
     from httpx import ASGITransport, AsyncClient
