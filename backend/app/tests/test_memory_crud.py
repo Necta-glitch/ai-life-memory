@@ -1,5 +1,7 @@
 import pytest
+from unittest.mock import Mock
 from httpx import AsyncClient
+from app.ai.schemas import AIProcessingResult
 
 
 class TestMemoryCRUD:
@@ -107,3 +109,82 @@ class TestMemoryCRUD:
         response = await client.delete("/memories/999")
         assert response.status_code == 404
         assert response.json()["detail"] == "Memory not found"
+
+
+class TestMemoryAICreation:
+    """Tests for AI processing during memory creation."""
+
+    @pytest.mark.asyncio
+    async def test_create_memory_calls_ai_service(self, client: AsyncClient, mock_ai_service: Mock):
+        """Verify AIService.process_memory is called with the memory content."""
+        await client.post("/memories/", json={"content": "Learned about Python async"})
+        
+        mock_ai_service.process_memory.assert_called_once_with("Learned about Python async")
+
+    @pytest.mark.asyncio
+    async def test_create_memory_persists_summary(self, client: AsyncClient):
+        """Verify AI-generated summary is persisted in the response."""
+        response = await client.post("/memories/", json={"content": "Test content"})
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["summary"] == "Test summary"
+
+    @pytest.mark.asyncio
+    async def test_create_memory_persists_topics(self, client: AsyncClient):
+        """Verify AI-generated topics are persisted in the response."""
+        response = await client.post("/memories/", json={"content": "Test content"})
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["topics"] == ["test", "topic"]
+
+    @pytest.mark.asyncio
+    async def test_create_memory_persists_entities(self, client: AsyncClient):
+        """Verify AI-generated entities are persisted in the response."""
+        response = await client.post("/memories/", json={"content": "Test content"})
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["entities"] == ["test", "entity"]
+
+    @pytest.mark.asyncio
+    async def test_create_memory_response_contains_ai_fields(self, client: AsyncClient):
+        """Verify the full API response includes all AI-generated fields."""
+        response = await client.post("/memories/", json={"content": "Test content"})
+        
+        assert response.status_code == 200
+        data = response.json()
+        # Basic fields
+        assert "id" in data
+        assert "user_id" in data
+        assert "content" in data
+        assert "source" in data
+        assert "created_at" in data
+        # AI fields
+        assert "summary" in data
+        assert "topics" in data
+        assert "entities" in data
+        # AI field values
+        assert data["summary"] == "Test summary"
+        assert data["topics"] == ["test", "topic"]
+        assert data["entities"] == ["test", "entity"]
+
+    @pytest.mark.asyncio
+    async def test_create_memory_ai_failure_rolls_back(self, client: AsyncClient, mock_ai_service: Mock):
+        """Verify that if AI processing fails, the memory is not persisted (rollback)."""
+        from openai import APIError
+        import httpx
+        
+        request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+        mock_ai_service.process_memory.side_effect = APIError("API Error", request=request, body=None)
+        
+        response = await client.post("/memories/", json={"content": "Test content"})
+        
+        # Should return 500 or appropriate error
+        assert response.status_code == 500
+        
+        # Verify memory was not created (list should be empty)
+        list_response = await client.get("/memories/")
+        assert list_response.status_code == 200
+        assert len(list_response.json()) == 0

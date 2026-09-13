@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.database import get_db
 from app.services.memory_service import MemoryService
@@ -30,11 +31,24 @@ def create_memory(
     Currently using hardcoded user_id for development.
     Will use authenticated user_id in production.
     """
-    return memory_service.create_memory(
-        db=db,
-        memory=memory,
-        user_id=user_id,
-    )
+    try:
+        return memory_service.create_memory(
+            db=db,
+            memory=memory,
+            user_id=user_id,
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while creating memory",
+        )
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process memory",
+        )
 
 @router.get("/", response_model=list[MemoryResponse])
 def get_memories(

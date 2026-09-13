@@ -4,23 +4,44 @@ from app.repositories.memory_repository import MemoryRepository
 from app.schemas.memory import MemoryCreate
 from app.schemas.memory_update import MemoryUpdate
 from app.models.memory import Memory
+from app.ai.service import AIService
 
 
 class MemoryService:
-    def __init__(self):
+    def __init__(self, ai_service: AIService | None = None):
         self.repository = MemoryRepository()
+        self.ai_service = ai_service or AIService()
 
     def create_memory(
         self,
         db: Session,
         memory: MemoryCreate,
         user_id: str,
-    ):
-        return self.repository.create(
-            db=db,
-            memory=memory,
+    ) -> Memory:
+        # Create memory object but don't commit yet
+        new_memory = Memory(
             user_id=user_id,
+            content=memory.content,
+            source=memory.source,
+            occurred_at=memory.occurred_at,
         )
+
+        db.add(new_memory)
+        db.flush()  # Get ID without committing
+
+        # Process with AI
+        ai_result = self.ai_service.process_memory(memory.content)
+
+        # Update with AI results
+        new_memory.summary = ai_result.summary
+        new_memory.topics = ai_result.topics
+        new_memory.entities = ai_result.entities
+
+        # Commit everything atomically
+        db.commit()
+        db.refresh(new_memory)
+
+        return new_memory
 
     def get_memories(
         self,
