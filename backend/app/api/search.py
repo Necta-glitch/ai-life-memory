@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.search.search_service import SearchService
+from app.ai.rag.service import RAGService
 from app.search.schemas import (
     SemanticSearchRequest, 
     SemanticSearchResponse,
@@ -12,10 +13,12 @@ from app.search.schemas import (
     HybridSearchRequest,
     HybridSearchResponse,
 )
+from app.ai.rag.schemas import RAGAnswerRequest, RAGAnswerResponse
 
 
 router = APIRouter(prefix="/search", tags=["search"])
 search_service = SearchService()
+rag_service = RAGService()
 
 logger = logging.getLogger(__name__)
 
@@ -115,4 +118,35 @@ def hybrid_search(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Search failed",
+        )
+
+
+@router.post("/chat", response_model=RAGAnswerResponse, tags=["chat"])
+def chat(
+    request: RAGAnswerRequest,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+):
+    """
+    Generate a grounded answer using RAG (Retrieval-Augmented Generation).
+    
+    Performs hybrid search, builds RAG context, and generates a grounded answer.
+    """
+    try:
+        return rag_service.answer_question(
+            db=db,
+            user_id=user_id,
+            query=request.query,
+            top_k=request.top_k,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception("Chat failed for user=%s query=%s", user_id, request.query)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Chat failed",
         )
