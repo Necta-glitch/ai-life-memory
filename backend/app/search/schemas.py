@@ -65,6 +65,8 @@ class HybridSearchResult(BaseModel):
     created_at: str
     occurred_at: str | None = None
     rrf_score: float = Field(..., ge=0.0, description="RRF fusion score (higher = more relevant)")
+    rerank_score: float | None = Field(default=None, ge=-1.0, le=1.0, description="Reranking cosine similarity score (higher = more relevant)")
+    embedding: list[float] | None = Field(default=None, description="Memory embedding vector (1536 dimensions)")
 
 
 class HybridSearchResponse(BaseModel):

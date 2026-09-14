@@ -113,10 +113,10 @@ class TestRAGService:
         mock_db,
         sample_hybrid_results,
     ):
-        # Mock hybrid search response
+        # Mock hybrid search with rerank response
         mock_hybrid_response = Mock()
         mock_hybrid_response.results = sample_hybrid_results
-        mock_search_service.hybrid_search.return_value = mock_hybrid_response
+        mock_search_service.hybrid_search_with_rerank.return_value = mock_hybrid_response
 
         # Mock LLM response
         mock_response = Mock()
@@ -141,9 +141,9 @@ class TestRAGService:
         assert response.total_sources == 2
         assert response.query == "¿Qué aprendí sobre RRF?"
 
-        # Verify hybrid search was called correctly
-        mock_search_service.hybrid_search.assert_called_once()
-        call_args = mock_search_service.hybrid_search.call_args
+        # Verify hybrid search with rerank was called correctly
+        mock_search_service.hybrid_search_with_rerank.assert_called_once()
+        call_args = mock_search_service.hybrid_search_with_rerank.call_args
         assert call_args.kwargs["user_id"] == "dev-user"
         request_arg = call_args.kwargs["request"]
         assert request_arg.query == "¿Qué aprendí sobre RRF?"
@@ -161,7 +161,7 @@ class TestRAGService:
         # Mock hybrid search with empty results
         mock_hybrid_response = Mock()
         mock_hybrid_response.results = []
-        mock_search_service.hybrid_search.return_value = mock_hybrid_response
+        mock_search_service.hybrid_search_with_rerank.return_value = mock_hybrid_response
 
         response = rag_service.answer_question(
             db=Mock(spec=Session),
@@ -205,7 +205,7 @@ class TestRAGService:
     ):
         mock_hybrid_response = Mock()
         mock_hybrid_response.results = sample_hybrid_results
-        mock_search_service.hybrid_search.return_value = mock_hybrid_response
+        mock_search_service.hybrid_search_with_rerank.return_value = mock_hybrid_response
 
         mock_response = Mock()
         mock_choice = Mock()
@@ -221,7 +221,7 @@ class TestRAGService:
         )
 
         # Verify user_id passed to hybrid search
-        call_args = mock_search_service.hybrid_search.call_args
+        call_args = mock_search_service.hybrid_search_with_rerank.call_args
         assert call_args.kwargs["user_id"] == "user-b"
 
     def test_answer_question_top_k_passed(
@@ -233,7 +233,7 @@ class TestRAGService:
     ):
         mock_hybrid_response = Mock()
         mock_hybrid_response.results = sample_hybrid_results
-        mock_search_service.hybrid_search.return_value = mock_hybrid_response
+        mock_search_service.hybrid_search_with_rerank.return_value = mock_hybrid_response
 
         mock_response = Mock()
         mock_choice = Mock()
@@ -248,7 +248,7 @@ class TestRAGService:
             top_k=3,
         )
 
-        call_args = mock_search_service.hybrid_search.call_args
+        call_args = mock_search_service.hybrid_search_with_rerank.call_args
         request_arg = call_args.kwargs["request"]
         assert request_arg.top_k == 3
 
@@ -262,7 +262,7 @@ class TestRAGService:
         """Sources should be built from retrieved memories, not LLM output."""
         mock_hybrid_response = Mock()
         mock_hybrid_response.results = sample_hybrid_results
-        mock_search_service.hybrid_search.return_value = mock_hybrid_response
+        mock_search_service.hybrid_search_with_rerank.return_value = mock_hybrid_response
 
         mock_response = Mock()
         mock_choice = Mock()
@@ -295,7 +295,7 @@ class TestRAGService:
 
         mock_hybrid_response = Mock()
         mock_hybrid_response.results = sample_hybrid_results
-        mock_search_service.hybrid_search.return_value = mock_hybrid_response
+        mock_search_service.hybrid_search_with_rerank.return_value = mock_hybrid_response
 
         request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
         rag_service.client.chat.completions.create.side_effect = APIError(

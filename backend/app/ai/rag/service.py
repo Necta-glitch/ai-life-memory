@@ -74,9 +74,9 @@ class RAGService:
         if not query or not query.strip():
             raise ValueError("Query cannot be empty")
 
-        # Execute hybrid search
+        # Execute hybrid search with reranking
         hybrid_request = HybridSearchRequest(query=query.strip(), top_k=top_k)
-        hybrid_response = self.search_service.hybrid_search(
+        hybrid_response = self.search_service.hybrid_search_with_rerank(
             db=db,
             request=hybrid_request,
             user_id=user_id,

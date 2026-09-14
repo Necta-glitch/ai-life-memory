@@ -150,3 +150,37 @@ def chat(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Chat failed",
         )
+
+
+@router.post("/rerank", response_model=HybridSearchResponse)
+def rerank_search(
+    request: HybridSearchRequest,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+):
+    """
+    Perform hybrid search with reranking by embedding similarity.
+    
+    This endpoint performs:
+    1. Hybrid search (semantic + keyword + RRF) to get a candidate pool
+    2. Reranking by cosine similarity between query and memory embeddings
+    
+    Returns memories ordered by reranking score (cosine similarity).
+    """
+    try:
+        return search_service.hybrid_search_with_rerank(
+            db=db,
+            request=request,
+            user_id=user_id,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception("Rerank search failed for user=%s query=%s", user_id, request.query)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Rerank search failed",
+        )

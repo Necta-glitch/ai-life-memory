@@ -11,6 +11,7 @@ from app.search.schemas import (
     HybridSearchResult,
     HybridSearchResponse,
 )
+from app.search.reranker import EmbeddingReranker
 from app.models.memory import Memory
 from sqlalchemy import select, func
 
@@ -23,9 +24,11 @@ class SearchService:
         self,
         embedding_service: EmbeddingService | None = None,
         search_repository: SearchRepository | None = None,
+        reranker: EmbeddingReranker | None = None,
     ):
         self.embedding_service = embedding_service or EmbeddingService()
         self.search_repository = search_repository or SearchRepository()
+        self.reranker = reranker or EmbeddingReranker(self.embedding_service)
 
     def semantic_search(
         self,
@@ -267,6 +270,150 @@ class SearchService:
         
         return HybridSearchResponse(
             results=final_results,
+            query=request.query,
+            total_candidates=total_candidates,
+        )
+
+    def _get_candidate_pool(
+        self,
+        db,
+        request: HybridSearchRequest,
+        user_id: str,
+    ) -> list[HybridSearchResult]:
+        """
+        Get a larger candidate pool for reranking.
+
+        Retrieves a larger pool of candidates from both semantic and keyword search,
+        combines them with RRF, and returns the full pool (not limited to top_k).
+        This ensures the reranker has enough candidates to work with.
+        """
+        candidate_pool_k = max(request.top_k * 3, 50)
+
+        # Execute both searches with larger candidate pool
+        semantic_request = SemanticSearchRequest(query=request.query, top_k=candidate_pool_k)
+        keyword_request = KeywordSearchRequest(query=request.query, top_k=candidate_pool_k)
+
+        semantic_response = self.semantic_search(db, semantic_request, user_id)
+        keyword_response = self.keyword_search(db, keyword_request, user_id)
+
+        # Calculate RRF scores
+        rrf_scores = self._get_rrf_scores(
+            semantic_response.results,
+            keyword_response.results,
+            self.RRF_K,
+        )
+
+        # Create a lookup for all memory details (from both sources)
+        memory_lookup: dict[int, dict] = {}
+        for r in semantic_response.results:
+            memory_lookup[r.id] = {
+                "id": r.id,
+                "user_id": r.user_id,
+                "content": r.content,
+                "summary": r.summary,
+                "topics": r.topics,
+                "entities": r.entities,
+                "source": r.source,
+                "created_at": r.created_at,
+                "occurred_at": r.occurred_at,
+            }
+        for r in keyword_response.results:
+            if r.id not in memory_lookup:
+                memory_lookup[r.id] = {
+                    "id": r.id,
+                    "user_id": r.user_id,
+                    "content": r.content,
+                    "summary": r.summary,
+                    "topics": r.topics,
+                    "entities": r.entities,
+                    "source": r.source,
+                    "created_at": r.created_at,
+                    "occurred_at": r.occurred_at,
+                }
+
+        # Build full candidate pool (not limited to top_k)
+        # Fetch embeddings from database for reranking
+        all_candidate_ids = set(r.id for r in semantic_response.results) | set(r.id for r in keyword_response.results)
+        
+        # Fetch embeddings from database in bulk
+        from app.models.memory import Memory
+        embeddings_map = {}
+        if all_candidate_ids:
+            embedding_results = db.execute(
+                select(Memory.id, Memory.embedding).where(Memory.id.in_(all_candidate_ids))
+            ).all()
+            embeddings_map = {row.id: row.embedding for row in embedding_results}
+        
+        candidate_pool = []
+        for memory_id in all_candidate_ids:
+            mem = memory_lookup[memory_id]
+            candidate_pool.append(HybridSearchResult(
+                id=mem["id"],
+                user_id=mem["user_id"],
+                content=mem["content"],
+                summary=mem["summary"],
+                topics=mem["topics"],
+                entities=mem["entities"],
+                source=mem["source"],
+                created_at=mem["created_at"],
+                occurred_at=mem["occurred_at"],
+                rrf_score=rrf_scores[memory_id],
+                embedding=embeddings_map.get(memory_id),
+            ))
+
+        return candidate_pool
+
+    def rerank(
+        self,
+        query: str,
+        results: list[HybridSearchResult],
+        top_k: int,
+    ) -> list[HybridSearchResult]:
+        """
+        Rerank results using the configured reranker.
+
+        Args:
+            query: The original user query
+            results: List of HybridSearchResult to rerank
+            top_k: Number of results to return after reranking
+
+        Returns:
+            Reranked list of HybridSearchResult
+        """
+        return self.reranker.rerank(query, results, top_k)
+
+    def hybrid_search_with_rerank(
+        self,
+        db,
+        request: HybridSearchRequest,
+        user_id: str,
+    ) -> HybridSearchResponse:
+        """
+        Perform hybrid search with reranking.
+
+        This is the main entry point for the new search flow:
+        1. Get candidate pool from hybrid search (semantic + keyword + RRF)
+        2. Rerank candidates by embedding similarity
+        3. Return top_k reranked results
+        """
+        # Get candidate pool
+        candidate_pool = self._get_candidate_pool(db, request, user_id)
+
+        if not candidate_pool:
+            return HybridSearchResponse(
+                results=[],
+                query=request.query,
+                total_candidates=0,
+            )
+
+        # Rerank the candidate pool
+        reranked_results = self.rerank(request.query, candidate_pool, request.top_k)
+
+        # total_candidates = unique memory IDs in the candidate pool
+        total_candidates = len(candidate_pool)
+
+        return HybridSearchResponse(
+            results=reranked_results,
             query=request.query,
             total_candidates=total_candidates,
         )
