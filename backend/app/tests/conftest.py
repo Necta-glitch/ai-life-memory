@@ -11,6 +11,7 @@ from app.main import app
 from app.ai.schemas import AIProcessingResult
 from app.ai.service import AIService
 from app.ai.embedding_service import EmbeddingService
+from app.search.search_service import SearchService
 
 
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"
@@ -54,8 +55,14 @@ def mock_embedding_service():
     return mock_service
 
 
+@pytest.fixture(scope="function")
+def mock_search_service():
+    """Mock SearchService for testing."""
+    return Mock(spec=SearchService)
+
+
 @pytest_asyncio.fixture(scope="function")
-async def client(db_session, mock_ai_service, mock_embedding_service):
+async def client(db_session, mock_ai_service, mock_embedding_service, mock_search_service):
     def override_get_db():
         try:
             yield db_session
