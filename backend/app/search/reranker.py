@@ -130,6 +130,119 @@ class EmbeddingReranker:
         return reranked[:top_k]
 
 
+class CrossEncoderReranker:
+    """
+    Reranker that uses a Cross-Encoder model for relevance scoring.
+
+    The Cross-Encoder takes (query, document) pairs and outputs a relevance score.
+    This is typically more accurate than embedding-based similarity but slower.
+
+    Uses sentence-transformers CrossEncoder for local inference.
+    """
+
+    def __init__(
+        self,
+        model_name: str = "BAAI/bge-reranker-v2-m3",
+        device: str | None = None,
+        max_length: int = 512,
+    ):
+        """
+        Initialize the Cross-Encoder reranker.
+
+        Args:
+            model_name: Name of the pretrained Cross-Encoder model
+            device: Device to run inference on ("cpu", "cuda", "mps", or None for auto)
+            max_length: Maximum sequence length for the model
+        """
+        self.model_name = model_name
+        self.max_length = max_length
+        self._model = None
+        self._device = device
+
+    @property
+    def model(self):
+        """Lazy load the Cross-Encoder model."""
+        if self._model is None:
+            from sentence_transformers import CrossEncoder
+            import torch
+
+            # Determine device
+            if self._device is None:
+                if torch.cuda.is_available():
+                    device = "cuda"
+                elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                    device = "mps"
+                else:
+                    device = "cpu"
+            else:
+                device = self._device
+
+            from sentence_transformers import CrossEncoder
+            self._model = CrossEncoder(self.model_name, device=device, max_length=self.max_length)
+
+        return self._model
+
+    def _build_document_text(self, result) -> str:
+        """
+        Build the document text for the Cross-Encoder input.
+
+        Uses the same strategy as embedding input: content + summary.
+
+        Args:
+            result: HybridSearchResult containing memory data
+
+        Returns:
+            Document text for Cross-Encoder input
+        """
+        parts = [result.content.strip()]
+
+        if result.summary and result.summary.strip():
+            parts.append(result.summary.strip())
+
+        return "\n\n".join(parts)
+
+    def rerank(
+        self,
+        query: str,
+        results: list,
+        top_k: int,
+    ) -> list:
+        """
+        Rerank results using Cross-Encoder relevance scoring.
+
+        Uses batch inference for efficiency.
+
+        Args:
+            query: The original user query
+            results: List of HybridSearchResult to rerank
+            top_k: Number of results to return after reranking
+
+        Returns:
+            Reranked list of HybridSearchResult with rerank_score added,
+            sorted by rerank_score descending
+        """
+        if not results:
+            return []
+
+        # Build (query, document) pairs for batch inference
+        pairs = []
+        for result in results:
+            document_text = self._build_document_text(result)
+            pairs.append((query, document_text))
+
+        # Batch inference - single call for all pairs
+        scores = self.model.predict(pairs, batch_size=32, show_progress_bar=False)
+
+        # Assign scores and sort
+        for result, score in zip(results, scores):
+            result.rerank_score = float(score)
+
+        # Sort by rerank_score descending
+        results.sort(key=lambda r: r.rerank_score, reverse=True)
+
+        return results[:top_k]
+
+
 class NoOpReranker:
     """Reranker that returns results unchanged (for testing or disabling reranking)."""
 

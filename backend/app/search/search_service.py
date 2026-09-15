@@ -11,8 +11,9 @@ from app.search.schemas import (
     HybridSearchResult,
     HybridSearchResponse,
 )
-from app.search.reranker import EmbeddingReranker
+from app.search.reranker import EmbeddingReranker, CrossEncoderReranker, Reranker, NoOpReranker
 from app.models.memory import Memory
+from app.core.config import RERANKER_TYPE, RERANKER_MODEL
 from sqlalchemy import select, func
 
 
@@ -24,11 +25,27 @@ class SearchService:
         self,
         embedding_service: EmbeddingService | None = None,
         search_repository: SearchRepository | None = None,
-        reranker: EmbeddingReranker | None = None,
+        reranker: Reranker | None = None,
     ):
         self.embedding_service = embedding_service or EmbeddingService()
         self.search_repository = search_repository or SearchRepository()
-        self.reranker = reranker or EmbeddingReranker(self.embedding_service)
+        
+        if reranker is not None:
+            self.reranker = reranker
+        else:
+            self.reranker = self._create_reranker()
+
+    def _create_reranker(self) -> Reranker:
+        """Create the appropriate reranker based on configuration."""
+        if RERANKER_TYPE == "cross_encoder":
+            return CrossEncoderReranker(model_name=RERANKER_MODEL)
+        elif RERANKER_TYPE == "embedding":
+            return EmbeddingReranker(self.embedding_service)
+        elif RERANKER_TYPE == "none":
+            return NoOpReranker()
+        else:
+            # Default to embedding reranker for backward compatibility
+            return EmbeddingReranker(self.embedding_service)
 
     def semantic_search(
         self,
