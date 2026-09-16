@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from '@/constants/api';
+import { Platform } from 'react-native';
 
 /**
  * Creates and configures the Axios instance for API requests.
@@ -23,7 +24,6 @@ function createApiClient(): AxiosInstance {
     }
     
     // React Native - check platform
-    const { Platform } = require('react-native');
     if (Platform.OS === 'ios') {
       // iOS Simulator can use localhost
       return 'http://localhost:8000';
@@ -47,6 +47,9 @@ function createApiClient(): AxiosInstance {
   // Request interceptor - add auth headers if needed
   client.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
+      // Add X-User-ID header for temporary development authentication
+      config.headers['X-User-ID'] = 'dev-user';
+      
       // Future: Add auth token here when authentication is implemented
       // const token = await getAuthToken();
       // if (token) {
