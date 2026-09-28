@@ -1,6 +1,6 @@
 // Memory API endpoints
 import { api } from './client';
-import type { MemoryResponse, MemoryCreate, MemoryUpdate } from '@/types/api';
+import type { MemoryResponse, MemoryCreate, MemoryUpdate, SaveMemoryResponse } from '@/types/api';
 
 export const memoriesApi = {
   /**
@@ -33,6 +33,21 @@ export const memoriesApi = {
    * Delete a memory by ID
    */
   delete: (id: number): Promise<void> => api.delete(`/memories/${id}`).then(res => res.data),
+
+  /**
+   * Get all saved memories for the current user
+   */
+  getSaved: (): Promise<MemoryResponse[]> => api.get<MemoryResponse[]>('/memories/saved').then(res => res.data),
+
+  /**
+   * Save a memory for the current user
+   */
+  save: (id: number): Promise<SaveMemoryResponse> => api.post<SaveMemoryResponse>(`/memories/${id}/save`).then(res => res.data),
+
+  /**
+   * Remove a memory from the current user's saved memories
+   */
+  unsave: (id: number): Promise<void> => api.delete(`/memories/${id}/save`).then(res => res.data),
 };
 
 export default memoriesApi;

@@ -1,10 +1,12 @@
 import { FlatList, RefreshControl, StyleSheet, Text, View, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { memoriesApi } from '@/api/memories';
 import type { MemoryResponse } from '@/types/api';
 import { MemoryItem } from '@/components/MemoryItem';
 import React from 'react';
 
 export default function MemoriesScreen() {
+  const router = useRouter();
   const [memories, setMemories] = React.useState<MemoryResponse[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -65,7 +67,7 @@ export default function MemoriesScreen() {
 
   const onRefresh = () => loadMemories(true);
   const onRetry = () => loadMemories();
-
+  console.log('API_BASE_URL:', process.env.EXPO_PUBLIC_API_URL);
   if (loading && memories.length === 0) {
     return (
       <View style={styles.loadingContainer}>
@@ -97,6 +99,12 @@ export default function MemoriesScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Memories</Text>
+        <TouchableOpacity style={styles.addButton} onPress={() => router.push('/create-memory' as any)} accessibilityLabel="Add memory">
+          <Text style={styles.addButtonText}>+</Text>
+        </TouchableOpacity>
+      </View>
       <FlatList
         data={memories}
         keyExtractor={(item) => String(item.id)}
@@ -121,6 +129,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonText: {
+    fontSize: 24,
+    color: '#fff',
+    fontWeight: '300',
+    lineHeight: 28,
   },
   listContent: {
     paddingBottom: 16,

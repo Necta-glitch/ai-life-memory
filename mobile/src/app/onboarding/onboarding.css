@@ -1,0 +1,24 @@
+.onboarding-screen { flex: 1; display: flex; flex-direction: column; padding: 0 0 0; }
+.onboarding-top { display: flex; align-items: center; justify-content: space-between; padding: 0 22px; height: 48px; }
+.onboarding-brand { display: flex; align-items: center; gap: 8px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: .21em; color: #2d2b29; }.onboarding-mark { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; color: #f6f3ed; background: #a95c49; }
+.onboarding-skip { display: flex; align-items: center; gap: 5px; border: 0; background: transparent; color: #9e978f; font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; transition: color .2s; }.onboarding-skip:hover { color: #a95c49; }
+
+.onboarding-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 32px; text-align: center; }
+.onboarding-icon-wrap { width: 72px; height: 72px; border-radius: 50%; border: 1px solid #ddd6cc; background: #efebe4; display: grid; place-items: center; color: #a95c49; margin-bottom: 28px; transition: transform .4s ease; animation: onb-icon-in .5s ease; }
+.onboarding-eyebrow { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .18em; color: #a95c49; font-weight: 500; margin-bottom: 14px; }
+.onboarding-title { margin: 0 0 16px; font-family: 'Libre Baskerville', serif; font-size: 32px; font-weight: 400; line-height: 1.18; letter-spacing: -.04em; color: #292725; max-width: 300px; animation: onb-text-in .5s ease; } .onboarding-title em { font-style: italic; color: #a95c49; }
+.onboarding-body { margin: 0 0 24px; font-size: 14px; line-height: 1.55; color: #69645e; max-width: 290px; animation: onb-text-in .5s ease .05s both; }
+.onboarding-detail { display: flex; align-items: flex-start; gap: 10px; max-width: 290px; text-align: left; animation: onb-text-in .5s ease .1s both; }
+.onboarding-detail-line { width: 1px; flex-shrink: 0; align-self: stretch; background: #c48672; min-height: 32px; margin-top: 2px; }
+.onboarding-detail p { margin: 0; font-family: 'Libre Baskerville', serif; font-style: italic; font-size: 12px; line-height: 1.5; color: #8a847d; }
+
+.onboarding-features { display: flex; gap: 10px; margin-top: 36px; flex-wrap: wrap; justify-content: center; animation: onb-text-in .5s ease .15s both; }
+.onboarding-feature { display: flex; align-items: center; gap: 6px; padding: 7px 11px; border: 1px solid rgba(45,43,41,.1); border-radius: 999px; font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: .08em; color: #716b64; background: #eeebe4; }.onboarding-feature svg { color: #a95c49; }
+
+.onboarding-bottom { padding: 0 22px 30px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.onboarding-dots { display: flex; gap: 7px; }
+.onboarding-dot { width: 6px; height: 6px; border-radius: 50%; border: 0; padding: 0; background: #d3cdc4; transition: all .3s ease; }.onboarding-dot.active { background: #a95c49; width: 18px; border-radius: 999px; }
+.onboarding-next { display: flex; align-items: center; gap: 9px; width: 100%; justify-content: center; padding: 14px; border: 0; border-radius: 10px; background: #a95c49; color: #fffaf5; font-size: 12px; font-weight: 600; letter-spacing: .02em; transition: background .2s, transform .2s; }.onboarding-next:hover { background: #914a39; transform: translateY(-1px); }
+
+@keyframes onb-icon-in { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes onb-text-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }

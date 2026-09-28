@@ -1,48 +1,49 @@
-import { Text, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import { STORAGE_KEYS } from '@/constants/storage';
 
-export default function Index() {
+/**
+ * App entry gate.
+ *
+ * Flow: Onboarding (once) → Main App (tabs)
+ */
+export default function HomeScreen() {
   const router = useRouter();
+  const [ready] = useState(false);
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>AI Life Memory</Text>
-      <Text style={styles.subtitle}>Your personal memory system</Text>
-      <TouchableOpacity style={styles.button} onPress={() => router.push('/memories' as any)}>
-        <Text style={styles.buttonText}>View Memories</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  useEffect(() => {
+    const gate = async () => {
+      const onboardingDone = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETED);
+      if (onboardingDone !== 'true') {
+        router.replace('/onboarding');
+        return;
+      }
+
+      // Onboarding done, go to tabs
+      router.replace('/(tabs)' as any);
+    };
+
+    gate();
+  }, [router]);
+
+  if (!ready) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#a95c49" />
+      </View>
+    );
+  }
+
+  return null;
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loading: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 32,
-  },
-  button: {
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    backgroundColor: '#f6f3ed',
   },
 });

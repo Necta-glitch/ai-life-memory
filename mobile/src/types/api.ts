@@ -24,6 +24,11 @@ export interface MemoryUpdate {
   occurred_at?: string | null;
 }
 
+export interface SaveMemoryResponse {
+  status: 'saved';
+  memory_id: number;
+}
+
 // Search types
 export interface SemanticSearchRequest {
   query: string;
