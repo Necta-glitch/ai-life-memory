@@ -27,8 +27,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { memoriesApi } from "@/api/memories";
 import type { MemoryResponse } from "@/types/api";
 
-type ViewType = "timeline" | "saved";
-
 type UIData = {
   id: number;
   content: string;
@@ -49,7 +47,6 @@ type UIData = {
 export default function HomeScreen() {
   const [memories, setMemories] = useState<UIData[]>([]);
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
-  const [view, setView] = useState<ViewType>("timeline");
   const [search, setSearch] = useState("");
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -59,6 +56,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<number | null>(null);
 
   const mountedRef = useRef(true);
 
@@ -122,37 +120,70 @@ export default function HomeScreen() {
     }
   }, []);
 
+  const loadSavedIds = useCallback(async () => {
+    try {
+      const savedMemories = await memoriesApi.getSaved();
+      if (mountedRef.current) {
+        const ids = new Set(savedMemories.map((m) => m.id));
+        setSavedIds(ids);
+      }
+    } catch (err) {
+      console.warn("Failed to load saved IDs:", err);
+    }
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadMemories();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadSavedIds();
 
     return () => {
       mountedRef.current = false;
     };
-  }, [loadMemories]);
+  }, [loadMemories, loadSavedIds]);
 
-  const onRefresh = () => loadMemories(true);
+  const onRefresh = () => {
+    loadMemories(true);
+    loadSavedIds();
+  };
 
-  const toggleSaved = useCallback((id: number) => {
-    setSavedIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const toggleSaved = useCallback(async (id: number) => {
+    if (savingId === id) return;
 
-  const savedMemories = useMemo(
-    () => memories.filter((memory) => savedIds.has(memory.id)),
-    [memories, savedIds],
-  );
+    const currentlySaved = savedIds.has(id);
+    setSavingId(id);
+
+    try {
+      if (currentlySaved) {
+        await memoriesApi.unsave(id);
+        setSavedIds((current) => {
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+      } else {
+        await memoriesApi.save(id);
+        setSavedIds((current) => {
+          const next = new Set(current);
+          next.add(id);
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error("Failed to toggle saved:", err);
+    } finally {
+      if (mountedRef.current) {
+        setSavingId(null);
+      }
+    }
+  }, [savedIds, savingId]);
 
   const filteredMemories = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const source = view === "timeline" ? memories : savedMemories;
-    if (!query) return source;
-    return source.filter((memory) =>
+    if (!query) return memories;
+    return memories.filter((memory) =>
       [
         memory.content,
         memory.summary ?? "",
@@ -160,7 +191,7 @@ export default function HomeScreen() {
         ...(memory.entities ?? []),
       ].some((field) => field.toLowerCase().includes(query)),
     );
-  }, [memories, savedMemories, search, view]);
+  }, [memories, search]);
 
   const addMemory = useCallback(async () => {
     if (!title.trim() || !note.trim() || submitting) return;
@@ -176,10 +207,8 @@ export default function HomeScreen() {
         occurred_at: new Date().toISOString(),
       });
 
-      // Refresh the memory list to include the newly created memory
       await loadMemories();
 
-      // Only clear and close on success
       setTitle("");
       setNote("");
       setIsComposerOpen(false);
@@ -190,11 +219,6 @@ export default function HomeScreen() {
       setSubmitting(false);
     }
   }, [title, note, submitting, loadMemories]);
-
-  const switchView = (newView: ViewType) => {
-    setView(newView);
-    setSearch("");
-  };
 
   const isLastItem = (index: number, total: number) => index === total - 1;
 
@@ -242,6 +266,7 @@ export default function HomeScreen() {
             accessibilityLabel={
               savedIds.has(memory.id) ? "Unsave memory" : "Save memory"
             }
+            disabled={savingId === memory.id}
           >
             {savedIds.has(memory.id) ? (
               <Check size={14} strokeWidth={2.2} color="#a95c49" />
@@ -254,26 +279,16 @@ export default function HomeScreen() {
     </View>
   );
 
-  const currentCount =
-    view === "timeline" ? memories.length : savedMemories.length;
-  const eyebrowText = view === "timeline" ? "YOUR ARCHIVE" : "KEPT CLOSE";
-  const countLabel = view === "timeline" ? "ENTRIES" : "SAVED";
-  const h1Text =
-    view === "timeline" ? "A life, remembered." : "Your kept memories.";
-  const introCopy =
-    view === "timeline"
-      ? "A quiet place for the things worth keeping."
-      : "A smaller, quieter shelf — the ones you returned to.";
-  const timelineHeaderText = view === "timeline" ? "RECENTLY" : "COLLECTION";
-  const yearSelectText = view === "timeline" ? "2024" : "All";
-  const searchPlaceholder =
-    view === "timeline" ? "Search your memories" : "Search saved memories";
-  const emptyStateTitle =
-    view === "timeline" ? "No memories found." : "Nothing matches your search.";
-  const emptyStateSubtitle =
-    view === "timeline"
-      ? "Try a different word or add a new entry."
-      : "Try a different word.";
+  const currentCount = memories.length;
+  const eyebrowText = "YOUR ARCHIVE";
+  const countLabel = "ENTRIES";
+  const h1Text = "A life, remembered.";
+  const introCopy = "A quiet place for the things worth keeping.";
+  const timelineHeaderText = "RECENTLY";
+  const yearSelectText = "2024";
+  const searchPlaceholder = "Search your memories";
+  const emptyStateTitle = "No memories found.";
+  const emptyStateSubtitle = "Try a different word or add a new entry.";
 
   if (loading && memories.length === 0) {
     return (
@@ -359,49 +374,19 @@ export default function HomeScreen() {
               renderMemory(memory, index, filteredMemories.length),
             )}
           </View>
-        ) : view === "timeline" ? (
+        ) : (
           <View style={styles.emptyState}>
             <Search size={20} strokeWidth={1.7} color="#8f8981" />
             <Text style={styles.emptyStateTitle}>{emptyStateTitle}</Text>
             <Text style={styles.emptyStateSubtitle}>{emptyStateSubtitle}</Text>
           </View>
-        ) : null}
-
-        {view === "timeline" && (
-          <View style={styles.endMark}>
-            <View style={styles.endMarkLine} />
-            <Text style={styles.endMarkText}>THE PRESENT</Text>
-            <View style={styles.endMarkLine} />
-          </View>
         )}
 
-        {view === "saved" && savedMemories.length === 0 && (
-          <View style={styles.savedEmpty}>
-            <View style={styles.savedEmptyIcon}>
-              <Bookmark size={26} strokeWidth={1.4} color="#b8b0a6" />
-            </View>
-            <Text style={styles.savedEmptyTitle}>Nothing kept yet.</Text>
-            <Text style={styles.savedEmptyText}>
-              Tap the bookmark on any memory to hold it here — a private shelf
-              of the moments you want to return to.
-            </Text>
-            <Pressable
-              style={styles.browseButton}
-              onPress={() => switchView("timeline")}
-            >
-              <Text style={styles.browseButtonText}>Browse your timeline</Text>
-              <ArrowRight size={15} strokeWidth={1.7} color="#a95c49" />
-            </Pressable>
-          </View>
-        )}
-
-        {view === "saved" && savedMemories.length > 0 && (
-          <View style={styles.endMark}>
-            <View style={styles.endMarkLine} />
-            <Text style={styles.endMarkText}>END OF COLLECTION</Text>
-            <View style={styles.endMarkLine} />
-          </View>
-        )}
+        <View style={styles.endMark}>
+          <View style={styles.endMarkLine} />
+          <Text style={styles.endMarkText}>THE PRESENT</Text>
+          <View style={styles.endMarkLine} />
+        </View>
       </ScrollView>
 
       <Pressable
