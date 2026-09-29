@@ -57,6 +57,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<number | null>(null);
 
   const mountedRef = useRef(true);
 
@@ -132,14 +133,27 @@ export default function HomeScreen() {
 
   const onRefresh = () => loadMemories(true);
 
-  const toggleSaved = useCallback((id: number) => {
-    setSavedIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const unsaveMemory = useCallback(async (id: number) => {
+    if (removingId === id) return;
+
+    setRemovingId(id);
+
+    try {
+      await memoriesApi.unsave(id);
+      setMemories((current) => current.filter((m) => m.id !== id));
+      setSavedIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    } catch (err) {
+      console.error("Failed to unsave memory:", err);
+    } finally {
+      if (mountedRef.current) {
+        setRemovingId(null);
+      }
+    }
+  }, [removingId]);
 
   const savedMemories = useMemo(
     () => memories.filter((memory) => savedIds.has(memory.id)),
@@ -246,10 +260,9 @@ export default function HomeScreen() {
               { marginLeft: "auto" },
               savedIds.has(memory.id) && styles.saveButtonSaved,
             ]}
-            onPress={() => toggleSaved(memory.id)}
-            accessibilityLabel={
-              savedIds.has(memory.id) ? "Unsave memory" : "Save memory"
-            }
+            onPress={() => unsaveMemory(memory.id)}
+            accessibilityLabel="Unsave memory"
+            disabled={removingId === memory.id}
           >
             {savedIds.has(memory.id) ? (
               <Check size={14} strokeWidth={2.2} color="#a95c49" />
