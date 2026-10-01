@@ -1,19 +1,15 @@
-import { Tabs } from 'expo-router';
-import { MemoriesProvider } from '@/context/MemoriesContext';
-import CustomTabBar from '@/components/TabBar';
+import { Stack } from 'expo-router';
 
 export default function RootLayout() {
   return (
-    <MemoriesProvider>
-      <Tabs
-        screenOptions={{
-          headerShown: false,
-        }}
-        tabBar={(props) => <CustomTabBar {...props} />}
-      >
-        <Tabs.Screen name="index" options={{ title: 'Memory' }} />
-        <Tabs.Screen name="saved" options={{ title: 'Saved' }} />
-      </Tabs>
-    </MemoriesProvider>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <Stack.Screen name="onboarding" />
+      <Stack.Screen name="login" />
+      <Stack.Screen name="(tabs)" />
+    </Stack>
   );
 }

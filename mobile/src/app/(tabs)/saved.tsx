@@ -24,6 +24,7 @@ import {
   ArrowRight,
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { memoriesApi } from "@/api/memories";
 import type { MemoryResponse } from "@/types/api";
 
@@ -47,6 +48,7 @@ type UIData = {
 };
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [memories, setMemories] = useState<UIData[]>([]);
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
   const [view, setView] = useState<ViewType>("saved");
@@ -221,9 +223,10 @@ export default function HomeScreen() {
   const isLastItem = (index: number, total: number) => index === total - 1;
 
   const renderMemory = (memory: UIData, index: number, total: number) => (
-    <View
+    <Pressable
       style={styles.memoryEntry}
       key={memory.id}
+      onPress={() => router.push(`/memory/${memory.id}` as any)}
     >
       <View style={styles.dateColumn}>
         <Text style={styles.dateMonth}>{memory.month}</Text>
@@ -272,7 +275,7 @@ export default function HomeScreen() {
           </Pressable>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 
   const currentCount =
@@ -425,86 +428,8 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      <Pressable
-        style={styles.addMemory}
-        onPress={() => setIsComposerOpen(true)}
-      >
-        <Plus size={18} strokeWidth={2.2} color="#fffaf5" />
-        <Text style={styles.addMemoryText}>Add memory</Text>
-      </Pressable>
+  
 
-      {isComposerOpen && (
-        <Modal
-          visible={isComposerOpen}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setIsComposerOpen(false)}
-        >
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => setIsComposerOpen(false)}
-          >
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={styles.composerContainer}
-              keyboardVerticalOffset={0}
-            >
-              <View style={styles.composer}>
-                <View style={styles.composerTop}>
-                  <Text style={styles.composerEyebrow}>NEW MEMORY</Text>
-                  <Pressable
-                    style={styles.iconButton}
-                    onPress={() => setIsComposerOpen(false)}
-                  >
-                    <X size={18} strokeWidth={1.7} color="#2d2b29" />
-                  </Pressable>
-                </View>
-                <Text style={styles.composerTitle}>
-                  What would you like{" "}
-                  <Text style={styles.composerTitleEm}>to remember?</Text>
-                </Text>
-                <View style={styles.composerField}>
-                  <Text style={styles.composerLabel}>Title</Text>
-                  <TextInput
-                    style={styles.composerInput}
-                    value={title}
-                    onChangeText={setTitle}
-                    placeholder="Give this moment a name"
-                    autoFocus
-                  />
-                </View>
-                <View style={styles.composerField}>
-                  <Text style={styles.composerLabel}>Note</Text>
-                  <TextInput
-                    style={[styles.composerInput, styles.composerTextArea]}
-                    value={note}
-                    onChangeText={setNote}
-                    placeholder="Write what happened, how it felt, or what you noticed..."
-                    multiline
-                  />
-                </View>
-                <Pressable
-                  style={[
-                    styles.saveMemory,
-                    (!title.trim() || !note.trim()) &&
-                      styles.saveMemoryDisabled,
-                  ]}
-                  onPress={addMemory}
-                  disabled={!title.trim() || !note.trim()}
-                >
-                  <Text style={styles.saveMemoryText}>Save memory</Text>
-                  <ArrowRight
-                    size={16}
-                    strokeWidth={1.7}
-                    color="#fffaf5"
-                    style={styles.arrowRightRotate}
-                  />
-                </Pressable>
-              </View>
-            </KeyboardAvoidingView>
-          </Pressable>
-        </Modal>
-      )}
     </SafeAreaView>
   );
 }

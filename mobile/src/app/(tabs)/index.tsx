@@ -24,7 +24,9 @@ import {
   ArrowRight,
 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { memoriesApi } from "@/api/memories";
+import { searchApi } from "@/api/search";
 import type { MemoryResponse } from "@/types/api";
 
 type UIData = {
@@ -45,9 +47,13 @@ type UIData = {
 };
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [memories, setMemories] = useState<UIData[]>([]);
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<UIData[] | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
@@ -132,6 +138,66 @@ export default function HomeScreen() {
     }
   }, []);
 
+  const performHybridSearch = useCallback(async (query: string) => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      setSearchResults(null);
+      setSearchError(null);
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError(null);
+
+    try {
+      const response = await searchApi.hybrid(trimmedQuery, 20);
+      if (mountedRef.current) {
+        const mapped = response.data.results.map((r): UIData => {
+          const date = r.occurred_at ? new Date(r.occurred_at) : new Date(r.created_at);
+          const dateLabel = date.toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+          });
+          const time = date.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          const month = date
+            .toLocaleDateString("en-US", { month: "short" })
+            .toUpperCase();
+          const day = String(date.getDate()).padStart(2, "0");
+
+          return {
+            id: r.id,
+            content: r.content,
+            summary: r.summary,
+            source: r.source,
+            occurred_at: r.occurred_at,
+            created_at: r.created_at,
+            topics: r.topics,
+            entities: r.entities,
+            displayDate: date,
+            dateLabel,
+            time,
+            month,
+            day,
+            isVoice: r.source === "voice",
+          };
+        });
+        setSearchResults(mapped);
+      }
+    } catch (err) {
+      if (mountedRef.current) {
+        const message = err instanceof Error ? err.message : "Search failed";
+        setSearchError(message);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setIsSearching(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -143,6 +209,14 @@ export default function HomeScreen() {
       mountedRef.current = false;
     };
   }, [loadMemories, loadSavedIds]);
+
+  // Trigger hybrid search when query changes (with debounce)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      performHybridSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, performHybridSearch]);
 
   const onRefresh = () => {
     loadMemories(true);
@@ -180,18 +254,24 @@ export default function HomeScreen() {
     }
   }, [savedIds, savingId]);
 
-  const filteredMemories = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return memories;
-    return memories.filter((memory) =>
-      [
-        memory.content,
-        memory.summary ?? "",
-        ...(memory.topics ?? []),
-        ...(memory.entities ?? []),
-      ].some((field) => field.toLowerCase().includes(query)),
-    );
-  }, [memories, search]);
+  const displayedMemories = useMemo(() => {
+    if (search.trim()) {
+      if (searchResults !== null) {
+        return searchResults;
+      }
+      // Fallback to client-side filtering while search is loading or failed
+      const query = search.trim().toLowerCase();
+      return memories.filter((memory) =>
+        [
+          memory.content,
+          memory.summary ?? "",
+          ...(memory.topics ?? []),
+          ...(memory.entities ?? []),
+        ].some((field) => field.toLowerCase().includes(query)),
+      );
+    }
+    return memories;
+  }, [memories, search, searchResults]);
 
   const addMemory = useCallback(async () => {
     if (!title.trim() || !note.trim() || submitting) return;
@@ -223,9 +303,10 @@ export default function HomeScreen() {
   const isLastItem = (index: number, total: number) => index === total - 1;
 
   const renderMemory = (memory: UIData, index: number, total: number) => (
-    <View
+    <Pressable
       style={styles.memoryEntry}
       key={memory.id}
+      onPress={() => router.push(`/memory/${memory.id}` as any)}
     >
       <View style={styles.dateColumn}>
         <Text style={styles.dateMonth}>{memory.month}</Text>
@@ -274,9 +355,9 @@ export default function HomeScreen() {
               <Bookmark size={14} strokeWidth={1.7} color="#a39b92" />
             )}
           </Pressable>
-        </View>
       </View>
-    </View>
+      </View>
+    </Pressable>
   );
 
   const currentCount = memories.length;
@@ -368,25 +449,45 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {filteredMemories.length > 0 ? (
+        {isSearching ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#a95c49" />
+            <Text style={styles.loadingText}>Searching...</Text>
+          </View>
+        ) : searchError ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>Search error: {searchError}</Text>
+            <Pressable style={styles.retryButton} onPress={() => performHybridSearch(search)}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : displayedMemories.length > 0 ? (
           <View style={styles.timeline}>
-            {filteredMemories.map((memory, index) =>
-              renderMemory(memory, index, filteredMemories.length),
+            {displayedMemories.map((memory, index) =>
+              renderMemory(memory, index, displayedMemories.length),
             )}
           </View>
         ) : (
           <View style={styles.emptyState}>
             <Search size={20} strokeWidth={1.7} color="#8f8981" />
-            <Text style={styles.emptyStateTitle}>{emptyStateTitle}</Text>
-            <Text style={styles.emptyStateSubtitle}>{emptyStateSubtitle}</Text>
+            <Text style={styles.emptyStateTitle}>
+              {search.trim() ? "No results found." : emptyStateTitle}
+            </Text>
+            <Text style={styles.emptyStateSubtitle}>
+              {search.trim()
+                ? "Try a different word or phrase."
+                : emptyStateSubtitle}
+            </Text>
           </View>
         )}
 
-        <View style={styles.endMark}>
-          <View style={styles.endMarkLine} />
-          <Text style={styles.endMarkText}>THE PRESENT</Text>
-          <View style={styles.endMarkLine} />
-        </View>
+        {!search.trim() && (
+          <View style={styles.endMark}>
+            <View style={styles.endMarkLine} />
+            <Text style={styles.endMarkText}>THE PRESENT</Text>
+            <View style={styles.endMarkLine} />
+          </View>
+        )}
       </ScrollView>
 
       <Pressable
