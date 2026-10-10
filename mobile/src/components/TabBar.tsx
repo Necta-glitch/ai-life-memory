@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Clock3, Bookmark, LogOut } from 'lucide-react-native';
+import { Clock3, Bookmark, MessageCircleQuestionMark } from 'lucide-react-native';
 import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs/types';
 
 type TabConfig = {
@@ -13,6 +13,7 @@ type TabConfig = {
 const TABS: TabConfig[] = [
   { name: 'index', label: 'Memory', icon: Clock3 },
   { name: 'saved', label: 'Saved', icon: Bookmark },
+  { name: 'ask', label: 'Ask', icon: MessageCircleQuestionMark },
 ];
 
 export default function CustomTabBar(props: BottomTabBarProps) {
@@ -73,26 +74,6 @@ export default function CustomTabBar(props: BottomTabBarProps) {
             </Pressable>
           );
         })}
-
-        <Pressable
-          onPress={() => {}}
-          accessibilityLabel="Logout"
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.tabItem,
-            {
-              backgroundColor: pressed ? 'rgba(45,43,41,0.05)' : 'transparent',
-              transform: [{ scale: pressed ? 0.95 : 1 }],
-            },
-          ]}
-          android_ripple={{ color: activeColor, borderless: true }}
-        >
-          <LogOut
-            size={22}
-            strokeWidth={2}
-            color={inactiveColor}
-          />
-        </Pressable>
       </View>
     </View>
   );

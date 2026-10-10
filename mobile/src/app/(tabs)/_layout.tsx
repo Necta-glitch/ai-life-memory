@@ -13,6 +13,7 @@ export default function TabsLayout() {
       >
         <Tabs.Screen name="index" options={{ title: 'Memory' }} />
         <Tabs.Screen name="saved" options={{ title: 'Saved' }} />
+        <Tabs.Screen name="ask" options={{ title: 'Ask' }} />
       </Tabs>
     </MemoriesProvider>
   );
